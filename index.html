@@ -38,6 +38,10 @@ body.collage .view{position:relative;z-index:1;pointer-events:none}
 .pin b{font-weight:400;font-size:clamp(56px,17vw,88px);line-height:1;width:1.1em;padding:14px 0;border:1px solid #ffffff40;border-radius:14px;background:#ffffff14}
 button{font:600 17px -apple-system,system-ui,sans-serif;min-height:52px;padding:0 30px;border-radius:999px;border:0;background:var(--rose);color:#fff;margin-top:18px}
 button:disabled{opacity:.6}
+#vlist{display:grid;gap:12px;margin-top:20px}
+#vlist button{margin:0;width:100%;min-height:64px;font-size:18px;border-radius:18px}
+#vlist button.soon{background:#ffffff14;color:var(--mute)}
+#vlist small{display:block;font-weight:400;font-size:13px;opacity:.8}
 video{width:100%;max-height:78vh;border-radius:12px;background:#000;margin-top:16px;display:none}
 .bar{height:4px;background:#ffffff22;border-radius:4px;overflow:hidden;margin:18px auto 0;max-width:260px;display:none}
 .bar i{display:block;height:100%;width:0;background:var(--rose);transition:width .2s}
@@ -73,9 +77,10 @@ ul.check li.ok::before{content:"● ";color:var(--rose)}
 
 <section class="view" id="v-film">
   <svg class="heart" id="filmheart"><use href="#h"/></svg>
-  <h1 id="filmtitle">YE</h1>
-  <p id="filmmsg">Something I made for you. Sound on.</p>
-  <button id="play" type="button">Play</button>
+  <h1 id="filmtitle">For you</h1>
+  <p id="filmmsg">Two videos. Sound on.</p>
+  <div id="vlist"></div>
+  <button id="play" type="button" style="display:none">Play</button>
   <div class="bar" id="bar"><i id="barfill"></i></div>
   <video id="vid" controls playsinline></video>
 </section>
@@ -91,7 +96,11 @@ ul.check li.ok::before{content:"● ";color:var(--rose)}
 {
 const TARGET = new Date(2026, 11, 3, 0, 0, 0);      // 3 December 2026, 00:00 on her phone
 const PX = [109, 108, 108, 109];
-const PARTS = ['film.0.bin', 'film.1.bin'];
+const VIDEOS = [
+  { title: 'One year anniversary!!!!', parts: ['film.0.bin', 'film.1.bin'] },
+  { title: 'Your present', parts: [] }
+];
+const PARTS = VIDEOS.flatMap(v => v.parts);
 const COLLAGE = (() => {
   let started = false;
   return async function (keyStr) {
@@ -242,17 +251,20 @@ function b64u(s) {
 }
 
 let filmKey = '';
-async function playFilm() {
-  const btn = $('play');
-  btn.disabled = true; btn.textContent = 'Opening…';
+let playing = null;
+async function playFilm(vi) {
+  const v0 = VIDEOS[vi], btn = document.querySelector('#vlist button[data-i="' + vi + '"]');
+  if (!v0.parts.length) return;
+  for (const b of document.querySelectorAll('#vlist button')) b.disabled = true;
+  btn.textContent = 'Opening…';
   $('bar').style.display = 'block';
   try {
     const bufs = [];
-    for (let i = 0; i < PARTS.length; i++) {
-      const r = await fetch(PARTS[i]);
+    for (let i = 0; i < v0.parts.length; i++) {
+      const r = await fetch(v0.parts[i]);
       if (!r.ok) throw new Error('missing');
       bufs.push(new Uint8Array(await r.arrayBuffer()));
-      $('barfill').style.width = ((i + 1) / (PARTS.length + 1) * 100) + '%';
+      $('barfill').style.width = ((i + 1) / (v0.parts.length + 1) * 100) + '%';
     }
     const all = new Uint8Array(bufs.reduce((a, b) => a + b.length, 0));
     let o = 0; for (const b of bufs) { all.set(b, o); o += b.length; }
@@ -262,22 +274,28 @@ async function playFilm() {
     const v = $('vid');
     v.src = URL.createObjectURL(new Blob([plain], { type: 'video/mp4' }));
     v.style.display = 'block';
-    $('bar').style.display = 'none'; btn.style.display = 'none'; $('filmheart').style.display = 'none';
-    $('filmmsg').textContent = 'Sound on.';
+    $('bar').style.display = 'none'; $('filmheart').style.display = 'none';
+    $('filmtitle').textContent = v0.title; $('filmmsg').textContent = 'Sound on.';
+    renderList(vi);
     v.play().catch(() => {});
   } catch (e) {
     $('bar').style.display = 'none';
-    btn.disabled = false; btn.textContent = 'Try again';
+    renderList(-1);
     $('filmmsg').textContent = "It didn't open. Scan the code inside the box again.";
   }
 }
-$('play').addEventListener('click', playFilm);
+function renderList(current) {
+  $('vlist').innerHTML = VIDEOS.map((v, i) => v.parts.length
+    ? '<button type="button" data-i="' + i + '">' + (i === current ? 'Playing: ' : '') + v.title + '</button>'
+    : '<button type="button" class="soon" data-i="' + i + '" disabled>' + v.title + '<small>Coming soon</small></button>').join('');
+}
+$('vlist').addEventListener('click', e => { const b = e.target.closest('button[data-i]'); if (b && !b.disabled) playFilm(+b.dataset.i); });
 
 async function setupView() {
   show('setup');
   const files = ['./', 'photos.bin', ...PARTS];
   const list = $('check');
-  list.innerHTML = '<li id="c-sw">Offline helper installed</li>' + files.map((f, i) => '<li id="c' + i + '">' + (f === './' ? 'Page' : f === 'photos.bin' ? 'Photos' : 'Video part ' + (i - 1)) + ' saved</li>').join('');
+  list.innerHTML = '<li id="c-sw">Offline helper installed</li>' + files.map((f, i) => '<li id="c' + i + '">' + (f === './' ? 'Page' : f === 'photos.bin' ? 'Photos' : f.startsWith('present') ? 'Present video part ' + f.split('.')[1] : 'Video part ' + f.split('.')[1]) + ' saved</li>').join('');
   for (let n = 0; n < 120; n++) {
     let done = 0;
     const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
@@ -303,8 +321,8 @@ function route() {
   if (h === 'lock' || h.startsWith('lock=')) { lockView(); if (h.startsWith('lock=')) COLLAGE(h.slice(5)); }
   else if (h.startsWith('film=')) {
     filmKey = h.slice(5);
-    const b = $('play'); b.style.display = ''; b.disabled = false; b.textContent = 'Play';
-    $('vid').style.display = 'none'; $('filmheart').style.display = ''; $('filmmsg').textContent = 'Something I made for you. Sound on.';
+    renderList(-1);
+    $('vid').style.display = 'none'; $('filmheart').style.display = ''; $('filmtitle').textContent = 'For you'; $('filmmsg').textContent = 'Two videos. Sound on.';
     show('film');
   }
   else if (h === 'setup') setupView();

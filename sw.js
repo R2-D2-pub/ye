@@ -1,4 +1,4 @@
-const CACHE = 'ye-v5';
+const CACHE = 'ye-v6';
 const FILES = ['./', './index.html', './photos.bin', './film.0.bin', './film.1.bin'];
 
 self.addEventListener('install', e => {
