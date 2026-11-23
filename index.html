@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1a0d14">
+<meta name="robots" content="noindex">
+<title>YE</title>
+<style>
+/* VOICE: tender and private, a note left in a box
+   IDEA: the last title card of the film, continued on her phone
+   PICTURE: one drawn heart, the countdown or the code set large in the film's serif
+   COLOUR and TYPE: deep plum night, warm white, one rose accent; Times as in the video
+   LAYOUT: one centred card per view, nothing else on screen */
+:root{--bg:#1a0d14;--ink:#fbf3ee;--mute:#c9b3bb;--rose:#f06292}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:radial-gradient(120% 80% at 50% 0%,#3a1628 0%,var(--bg) 60%) fixed;color:var(--ink);font:18px/1.5 "Times New Roman",Times,serif;display:grid;place-items:center;padding:calc(24px + env(safe-area-inset-top)) 22px calc(24px + env(safe-area-inset-bottom));text-align:center;-webkit-font-smoothing:antialiased}
+.view{display:none;max-width:520px;width:100%}
+.view.on{display:block}
+svg.heart{width:72px;height:72px;margin:0 auto 18px;display:block}
+@media(prefers-reduced-motion:no-preference){svg.heart{animation:beat 1.6s ease-in-out infinite}@keyframes beat{0%,100%{transform:scale(1)}15%{transform:scale(1.12)}30%{transform:scale(1)}45%{transform:scale(1.08)}}}
+h1{font-weight:400;font-size:clamp(34px,9vw,52px);line-height:1.05;margin:0 0 10px;text-wrap:balance}
+p{margin:0 0 10px;color:var(--mute)}
+.count{display:flex;justify-content:center;gap:clamp(10px,4vw,22px);margin:28px 0 22px}
+.count div{min-width:64px}
+.count b{display:block;font-weight:400;font-size:clamp(44px,13vw,72px);line-height:1;font-variant-numeric:tabular-nums}
+.count span{font-size:14px;color:var(--mute)}
+.pin{display:flex;justify-content:center;gap:12px;margin:26px 0}
+.pin b{font-weight:400;font-size:clamp(56px,17vw,88px);line-height:1;width:1.1em;padding:14px 0;border:1px solid #ffffff33;border-radius:14px;background:#ffffff0d}
+button{font:600 17px -apple-system,system-ui,sans-serif;min-height:52px;padding:0 30px;border-radius:999px;border:0;background:var(--rose);color:#fff;margin-top:18px}
+button:disabled{opacity:.6}
+video{width:100%;max-height:78vh;border-radius:12px;background:#000;margin-top:16px;display:none}
+.bar{height:4px;background:#ffffff22;border-radius:4px;overflow:hidden;margin:18px auto 0;max-width:260px;display:none}
+.bar i{display:block;height:100%;width:0;background:var(--rose);transition:width .2s}
+.small{font-size:14px}
+ul.check{list-style:none;padding:0;margin:18px auto;text-align:left;max-width:300px;font:15px/1.9 -apple-system,system-ui,sans-serif;color:var(--mute)}
+ul.check li.ok{color:var(--ink)}
+ul.check li::before{content:"○ ";color:var(--mute)}
+ul.check li.ok::before{content:"● ";color:var(--rose)}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs><symbol id="h" viewBox="0 0 24 24"><path fill="#f06292" d="M12 21s-7.5-4.6-9.6-9.1C.9 8.6 2.8 4.5 6.6 4.5c2.3 0 3.8 1.3 5.4 3.2 1.6-1.9 3.1-3.2 5.4-3.2 3.8 0 5.7 4.1 4.2 7.4C19.5 16.4 12 21 12 21z"/></symbol></defs></svg>
+
+<section class="view" id="v-home">
+  <svg class="heart"><use href="#h"/></svg>
+  <h1>Nothing here yet</h1>
+  <p>Scan the code on the box.</p>
+</section>
+
+<section class="view" id="v-wait">
+  <svg class="heart"><use href="#h"/></svg>
+  <h1>Not yet, my love</h1>
+  <p>The code unlocks on 3 December.</p>
+  <div class="count" id="count"></div>
+  <p class="small">Come back and scan again then.</p>
+</section>
+
+<section class="view" id="v-pin">
+  <svg class="heart"><use href="#h"/></svg>
+  <h1>Happy anniversary</h1>
+  <p>Here is the code for your lock</p>
+  <div class="pin" id="pin"></div>
+  <p>Now open the box.</p>
+</section>
+
+<section class="view" id="v-film">
+  <svg class="heart" id="filmheart"><use href="#h"/></svg>
+  <h1 id="filmtitle">YE</h1>
+  <p id="filmmsg">Something I made for you. Sound on.</p>
+  <button id="play" type="button">Play</button>
+  <div class="bar" id="bar"><i id="barfill"></i></div>
+  <video id="vid" controls playsinline></video>
+</section>
+
+<section class="view" id="v-setup">
+  <h1>Offline setup</h1>
+  <p class="small">Keep this open until every line is filled in.</p>
+  <ul class="check" id="check"></ul>
+  <p id="setupmsg" class="small"></p>
+</section>
+
+<script>
+{
+const TARGET = new Date(2026, 11, 3, 0, 0, 0);      // 3 December 2026, 00:00 on her phone
+const PX = [];
+const PARTS = ['film.0.bin', 'film.1.bin'];
+const $ = id => document.getElementById(id);
+const show = v => { for (const s of document.querySelectorAll('.view')) s.classList.toggle('on', s.id === 'v-' + v); };
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
+
+let tick = null;
+function lockView() {
+  clearInterval(tick);
+  const step = () => {
+    const ms = TARGET - new Date();
+    if (ms <= 0) {
+      clearInterval(tick);
+      $('pin').innerHTML = PX.map(c => '<b>' + String.fromCharCode(c ^ 90) + '</b>').join('');
+      show('pin');
+      return;
+    }
+    const s = Math.floor(ms / 1000), d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+    $('count').innerHTML = [[d, d === 1 ? 'day' : 'days'], [h, 'hours'], [m, 'min'], [sec, 'sec']]
+      .map(([v, l]) => '<div><b>' + String(v).padStart(2, '0') + '</b><span>' + l + '</span></div>').join('');
+    show('wait');
+  };
+  step();
+  tick = setInterval(step, 1000);
+}
+
+function b64u(s) {
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  return Uint8Array.from(atob(s), c => c.charCodeAt(0));
+}
+
+let filmKey = '';
+async function playFilm() {
+  const btn = $('play');
+  btn.disabled = true; btn.textContent = 'Opening…';
+  $('bar').style.display = 'block';
+  try {
+    const bufs = [];
+    for (let i = 0; i < PARTS.length; i++) {
+      const r = await fetch(PARTS[i]);
+      if (!r.ok) throw new Error('missing');
+      bufs.push(new Uint8Array(await r.arrayBuffer()));
+      $('barfill').style.width = ((i + 1) / (PARTS.length + 1) * 100) + '%';
+    }
+    const all = new Uint8Array(bufs.reduce((a, b) => a + b.length, 0));
+    let o = 0; for (const b of bufs) { all.set(b, o); o += b.length; }
+    const key = await crypto.subtle.importKey('raw', b64u(filmKey), 'AES-GCM', false, ['decrypt']);
+    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: all.subarray(0, 12) }, key, all.subarray(12));
+    $('barfill').style.width = '100%';
+    const v = $('vid');
+    v.src = URL.createObjectURL(new Blob([plain], { type: 'video/mp4' }));
+    v.style.display = 'block';
+    $('bar').style.display = 'none'; btn.style.display = 'none'; $('filmheart').style.display = 'none';
+    $('filmmsg').textContent = 'Sound on.';
+    v.play().catch(() => {});
+  } catch (e) {
+    $('bar').style.display = 'none';
+    btn.disabled = false; btn.textContent = 'Try again';
+    $('filmmsg').textContent = "It didn't open. Scan the code inside the box again.";
+  }
+}
+$('play').addEventListener('click', playFilm);
+
+async function setupView() {
+  show('setup');
+  const files = ['./', ...PARTS];
+  const list = $('check');
+  list.innerHTML = '<li id="c-sw">Offline helper installed</li>' + files.map((f, i) => '<li id="c' + i + '">' + (f === './' ? 'Page' : 'Video part ' + i) + ' saved</li>').join('');
+  for (let n = 0; n < 120; n++) {
+    let done = 0;
+    const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+    if (reg && reg.active) { $('c-sw').className = 'ok'; done++; }
+    if (window.caches) {
+      for (let i = 0; i < files.length; i++) {
+        if (await caches.match(files[i])) { $('c' + i).className = 'ok'; done++; }
+      }
+    }
+    if (done === files.length + 1) {
+      $('setupmsg').innerHTML = 'All saved. Now turn on Airplane Mode, close Safari and scan the outside code. You should see the countdown.';
+      return;
+    }
+    $('setupmsg').textContent = 'Saving… keep Wi-Fi on.';
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  $('setupmsg').textContent = 'Not everything saved. Reload this page on Wi-Fi.';
+}
+
+function route() {
+  const h = location.hash.slice(1);
+  clearInterval(tick);
+  if (h === 'lock') lockView();
+  else if (h.startsWith('film=')) {
+    filmKey = h.slice(5);
+    const b = $('play'); b.style.display = ''; b.disabled = false; b.textContent = 'Play';
+    $('vid').style.display = 'none'; $('filmheart').style.display = ''; $('filmmsg').textContent = 'Something I made for you. Sound on.';
+    show('film');
+  }
+  else if (h === 'setup') setupView();
+  else show('home');
+}
+window.addEventListener('hashchange', route);
+route();
+}
+</script>
+</body>
+</html>
