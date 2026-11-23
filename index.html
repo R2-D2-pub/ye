@@ -22,12 +22,20 @@ svg.heart{width:72px;height:72px;margin:0 auto 18px;display:block}
 @media(prefers-reduced-motion:no-preference){svg.heart{animation:beat 1.6s ease-in-out infinite}@keyframes beat{0%,100%{transform:scale(1)}15%{transform:scale(1.12)}30%{transform:scale(1)}45%{transform:scale(1.08)}}}
 h1{font-weight:400;font-size:clamp(34px,9vw,52px);line-height:1.05;margin:0 0 10px;text-wrap:balance}
 p{margin:0 0 10px;color:var(--mute)}
-.count{display:flex;justify-content:center;gap:clamp(10px,4vw,22px);margin:28px 0 22px}
-.count div{min-width:64px}
-.count b{display:block;font-weight:400;font-size:clamp(44px,13vw,72px);line-height:1;font-variant-numeric:tabular-nums}
-.count span{font-size:14px;color:var(--mute)}
-.pin{display:flex;justify-content:center;gap:12px;margin:26px 0}
-.pin b{font-weight:400;font-size:clamp(56px,17vw,88px);line-height:1;width:1.1em;padding:14px 0;border:1px solid #ffffff33;border-radius:14px;background:#ffffff0d}
+#wall{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;display:none;touch-action:none;cursor:grab;z-index:0}
+body.collage #wall{display:block}
+body.collage .view{position:relative;z-index:1;pointer-events:none}
+.glass{display:inline-block;padding:18px 22px;border-radius:22px;background:#1a0d1466;-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);box-shadow:0 18px 50px -20px #000c,inset 0 0 0 1px #ffffff26}
+.count{display:flex;justify-content:center;align-items:baseline;gap:clamp(4px,1.6vw,10px);margin:0}
+.count b{font-weight:400;font-size:clamp(46px,14vw,84px);line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.01em;text-shadow:0 2px 18px #0008}
+.count i{font-style:normal;font-size:clamp(30px,8vw,52px);opacity:.55;transform:translateY(-.12em)}
+#v-pin h1{margin:6px 0 4px;font-size:clamp(30px,8vw,44px);text-shadow:0 2px 18px #0008}
+#lb{position:fixed;inset:0;z-index:5;display:grid;place-items:center;background:#0d060acc;opacity:0;pointer-events:none;transition:opacity .25s}
+#lb.on{opacity:1;pointer-events:auto}
+#lb img{max-width:88vw;max-height:80vh;border:10px solid #fff;border-bottom-width:34px;border-radius:3px;box-shadow:0 30px 80px #000;transform:rotate(-2deg) scale(.92);transition:transform .25s}
+#lb.on img{transform:rotate(-2deg) scale(1)}
+.pin{display:flex;justify-content:center;gap:12px;margin:18px 0 6px}
+.pin b{font-weight:400;font-size:clamp(56px,17vw,88px);line-height:1;width:1.1em;padding:14px 0;border:1px solid #ffffff40;border-radius:14px;background:#ffffff14}
 button{font:600 17px -apple-system,system-ui,sans-serif;min-height:52px;padding:0 30px;border-radius:999px;border:0;background:var(--rose);color:#fff;margin-top:18px}
 button:disabled{opacity:.6}
 video{width:100%;max-height:78vh;border-radius:12px;background:#000;margin-top:16px;display:none}
@@ -49,20 +57,18 @@ ul.check li.ok::before{content:"● ";color:var(--rose)}
   <p>Scan the code on the box.</p>
 </section>
 
+<canvas id="wall" aria-hidden="true"></canvas>
+<div id="lb" aria-hidden="true"><img id="lbimg" alt=""></div>
+
 <section class="view" id="v-wait">
-  <svg class="heart"><use href="#h"/></svg>
-  <h1>Not yet, my love</h1>
-  <p>The code unlocks on 3 December.</p>
-  <div class="count" id="count"></div>
-  <p class="small">Come back and scan again then.</p>
+  <div class="glass"><div class="count" id="count"></div></div>
 </section>
 
 <section class="view" id="v-pin">
-  <svg class="heart"><use href="#h"/></svg>
-  <h1>Happy anniversary</h1>
-  <p>Here is the code for your lock</p>
-  <div class="pin" id="pin"></div>
-  <p>Now open the box.</p>
+  <div class="glass">
+    <h1>Happy anniversary</h1>
+    <div class="pin" id="pin"></div>
+  </div>
 </section>
 
 <section class="view" id="v-film">
@@ -86,6 +92,124 @@ ul.check li.ok::before{content:"● ";color:var(--rose)}
 const TARGET = new Date(2026, 11, 3, 0, 0, 0);      // 3 December 2026, 00:00 on her phone
 const PX = [];
 const PARTS = ['film.0.bin', 'film.1.bin'];
+const COLLAGE = (() => {
+  let started = false;
+  return async function (keyStr) {
+    if (started) return;
+    started = true;
+    let imgs, srcs;
+    try {
+      const buf = new Uint8Array(await (await fetch('photos.bin')).arrayBuffer());
+      const key = await crypto.subtle.importKey('raw', b64u(keyStr), 'AES-GCM', false, ['decrypt']);
+      const plain = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: buf.subarray(0, 12) }, key, buf.subarray(12)));
+      const hl = new DataView(plain.buffer).getUint32(0);
+      const sizes = JSON.parse(new TextDecoder().decode(plain.subarray(4, 4 + hl)));
+      let o = 4 + hl;
+      srcs = sizes.map(n => { const u = URL.createObjectURL(new Blob([plain.slice(o, o + n)], { type: 'image/jpeg' })); o += n; return u; });
+      imgs = await Promise.all(srcs.map(u => new Promise(r => { const im = new Image(); im.onload = () => r(im); im.onerror = () => r(null); im.src = u; })));
+    } catch (e) { started = false; return; }
+    const ok = imgs.map((im, i) => im ? i : -1).filter(i => i >= 0);
+    if (!ok.length) return;
+
+    const cv = document.getElementById('wall'), ctx = cv.getContext('2d');
+    const DPR = Math.min(2, window.devicePixelRatio || 1);
+    const CELL = 172, PW = 142, PH = 168, PHOTO = 128;
+
+    // pre-render each photo as a polaroid card (white frame, square crop)
+    const cards = imgs.map(im => {
+      if (!im) return null;
+      const c = document.createElement('canvas');
+      c.width = PW * DPR; c.height = PH * DPR;
+      const g = c.getContext('2d'); g.scale(DPR, DPR);
+      g.fillStyle = '#fbf7f2'; g.fillRect(0, 0, PW, PH);
+      const s = Math.min(im.width, im.height), sx = (im.width - s) / 2, sy = (im.height - s) * 0.35;
+      g.drawImage(im, sx, sy, s, s, (PW - PHOTO) / 2, 7, PHOTO, PHOTO);
+      return c;
+    });
+
+    const hash = (i, j, k) => { let x = (i * 374761393 + j * 668265263 + k * 2147483647) | 0; x = (x ^ (x >>> 13)) * 1274126177 | 0; return ((x ^ (x >>> 16)) >>> 0) / 4294967296; };
+    const N = ok.length;
+    // neighbouring cells avoid repeating the same photo
+    const pick = (i, j) => ok[(((i * 7 + j * 11) % N) + N) % N];
+
+    let W = 0, H = 0;
+    const size = () => { W = innerWidth; H = innerHeight; cv.width = W * DPR; cv.height = H * DPR; };
+    size(); addEventListener('resize', size);
+
+    let ox = 0, oy = 0, ang = 0, vx = 0, vy = 0, zoom = 1;
+    const SPIN = 0.045; // rad per second
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // pointer: drag to pan (with momentum), pinch to zoom, tap to open a photo
+    const pts = new Map(); let lastT = 0, moved = 0, pinch0 = 0, zoom0 = 1;
+    const toWorld = (dx, dy) => { const c = Math.cos(-ang), s = Math.sin(-ang); return [(dx * c - dy * s) / zoom, (dx * s + dy * c) / zoom]; };
+    cv.addEventListener('pointerdown', e => {
+      cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]); vx = vy = 0; moved = 0; lastT = performance.now();
+      if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch0 = Math.hypot(a[0] - b[0], a[1] - b[1]); zoom0 = zoom; }
+    });
+    cv.addEventListener('pointermove', e => {
+      const p = pts.get(e.pointerId); if (!p) return;
+      const dx = e.clientX - p[0], dy = e.clientY - p[1];
+      pts.set(e.pointerId, [e.clientX, e.clientY]);
+      if (pts.size === 2) {
+        const [a, b] = [...pts.values()]; const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+        if (pinch0) zoom = Math.max(0.55, Math.min(2.2, zoom0 * d / pinch0)); moved += 10; return;
+      }
+      moved += Math.abs(dx) + Math.abs(dy);
+      const [wx, wy] = toWorld(dx, dy); ox -= wx; oy -= wy;
+      const now = performance.now(), dt = Math.max(8, now - lastT); lastT = now;
+      vx = -wx / dt * 16; vy = -wy / dt * 16;
+    });
+    const up = e => {
+      if (!pts.has(e.pointerId)) return;
+      pts.delete(e.pointerId); if (pts.size < 2) pinch0 = 0;
+      if (moved < 8 && pts.size === 0) tap(e.clientX, e.clientY);
+    };
+    cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+
+    const lb = document.getElementById('lb'), lbimg = document.getElementById('lbimg');
+    lb.addEventListener('click', () => lb.classList.remove('on'));
+    function tap(x, y) {
+      const [wx, wy] = toWorld(x - W / 2, y - H / 2);
+      const X = wx + ox, Y = wy + oy;
+      const i = Math.floor(X / CELL), j = Math.floor(Y / CELL);
+      lbimg.src = srcs[pick(i, j)];
+      lb.classList.add('on');
+    }
+
+    let prev = performance.now();
+    function frame(now) {
+      const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
+      if (!reduce) ang += SPIN * dt;
+      if (!pts.size) { ox += vx; oy += vy; vx *= 0.94; vy *= 0.94; if (!reduce) { ox += 9 * dt; oy += 4 * dt; } }
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      ctx.fillStyle = '#1a0d14'; ctx.fillRect(0, 0, W, H);
+      ctx.translate(W / 2, H / 2); ctx.rotate(ang); ctx.scale(zoom, zoom);
+      const R = Math.hypot(W, H) / 2 / zoom + CELL;
+      const i0 = Math.floor((ox - R) / CELL), i1 = Math.floor((ox + R) / CELL);
+      const j0 = Math.floor((oy - R) / CELL), j1 = Math.floor((oy + R) / CELL);
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+        const card = cards[pick(i, j)]; if (!card) continue;
+        const cx = i * CELL + CELL / 2 + (hash(i, j, 1) - 0.5) * 26 - ox;
+        const cy = j * CELL + CELL / 2 + (hash(i, j, 2) - 0.5) * 26 - oy;
+        if (cx * cx + cy * cy > R * R) continue;
+        const rot = (hash(i, j, 3) - 0.5) * 0.5;
+        ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot);
+        ctx.fillStyle = '#00000059'; ctx.fillRect(-PW / 2 + 4, -PH / 2 + 7, PW, PH);
+        ctx.drawImage(card, -PW / 2, -PH / 2, PW, PH);
+        ctx.restore();
+      }
+      // soft vignette so the numbers stay readable
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.15, W / 2, H / 2, Math.hypot(W, H) * 0.6);
+      g.addColorStop(0, '#1a0d1440'); g.addColorStop(1, '#1a0d14b3');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      requestAnimationFrame(frame);
+    }
+    document.body.classList.add('collage');
+    requestAnimationFrame(frame);
+  };
+})();
 const $ = id => document.getElementById(id);
 const show = v => { for (const s of document.querySelectorAll('.view')) s.classList.toggle('on', s.id === 'v-' + v); };
 
@@ -104,8 +228,7 @@ function lockView() {
       return;
     }
     const s = Math.floor(ms / 1000), d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
-    $('count').innerHTML = [[d, d === 1 ? 'day' : 'days'], [h, 'hours'], [m, 'min'], [sec, 'sec']]
-      .map(([v, l]) => '<div><b>' + String(v).padStart(2, '0') + '</b><span>' + l + '</span></div>').join('');
+    $('count').innerHTML = [d, h, m, sec].map(v => '<b>' + String(v).padStart(2, '0') + '</b>').join('<i>:</i>');
     show('wait');
   };
   step();
@@ -152,9 +275,9 @@ $('play').addEventListener('click', playFilm);
 
 async function setupView() {
   show('setup');
-  const files = ['./', ...PARTS];
+  const files = ['./', 'photos.bin', ...PARTS];
   const list = $('check');
-  list.innerHTML = '<li id="c-sw">Offline helper installed</li>' + files.map((f, i) => '<li id="c' + i + '">' + (f === './' ? 'Page' : 'Video part ' + i) + ' saved</li>').join('');
+  list.innerHTML = '<li id="c-sw">Offline helper installed</li>' + files.map((f, i) => '<li id="c' + i + '">' + (f === './' ? 'Page' : f === 'photos.bin' ? 'Photos' : 'Video part ' + (i - 1)) + ' saved</li>').join('');
   for (let n = 0; n < 120; n++) {
     let done = 0;
     const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
@@ -177,7 +300,7 @@ async function setupView() {
 function route() {
   const h = location.hash.slice(1);
   clearInterval(tick);
-  if (h === 'lock') lockView();
+  if (h === 'lock' || h.startsWith('lock=')) { lockView(); if (h.startsWith('lock=')) COLLAGE(h.slice(5)); }
   else if (h.startsWith('film=')) {
     filmKey = h.slice(5);
     const b = $('play'); b.style.display = ''; b.disabled = false; b.textContent = 'Play';
