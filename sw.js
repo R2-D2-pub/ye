@@ -1,8 +1,8 @@
-const CACHE = 'ye-v2';
+const CACHE = 'ye-v3';
 const FILES = ['./', './index.html', './photos.bin', './film.0.bin', './film.1.bin'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(f => new Request(f, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
